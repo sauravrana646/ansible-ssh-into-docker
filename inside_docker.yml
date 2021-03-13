@@ -1,0 +1,117 @@
+- name : Setting Docker
+  hosts : dockerhost
+  vars : 
+    - docker_name : test
+  tasks : 
+  - name : Configure docker repo
+    yum_repository : 
+      name : docker
+      description : docker repo
+      baseurl : https://download.docker.com/linux/centos/7/x86_64/stable/
+      gpgcheck : no
+  - name : Install docker
+    package : 
+      name : docker-ce-18.09 
+      state : present
+  - name : Install docker python support
+    pip :
+      name : docker
+      state : present
+  - name : Start Docker Service
+    service : 
+      name : docker
+      state : restarted
+    changed_when : false
+  - name : Create Volume Mount
+    file : 
+      name : /root/dockermount/
+      state : directory
+  - name : Download webpages
+    git : 
+      repo : https://github.com/sauravrana646/ansible_arth1
+      clone : yes
+      dest : /root/dockermount/
+  - name : pull image
+    docker_image : 
+      name : centos
+      source : pull
+      state : present
+  - name : Copy SSH keys 
+    copy : 
+      src : "{{item}}"
+      dest : "{{item}}"
+    with_items  :
+      - /root/docker.pem
+      - /root/docker.pem.pub
+  - name : Running a container
+    tags : docker_run
+    docker_container : 
+      name : "{{docker_name}}"
+      hostname : reboot
+      image : centos
+      state : started
+      interactive : yes
+      published_ports : 
+      - 9090:80
+      - "9091:22"
+      volumes :   
+      - /root/dockermount/:/var/www/html
+      tty : yes
+    register : docker_out
+    notify : 
+      - Create_script_for_SSH_docker
+      - Adding_execute_permission
+      - Configure_SSH_in_docker
+
+  
+  - name: Add a host with a non-standard port local to your machines
+    tags : docker_run
+    add_host:
+      hostname : "{{docker_name}} {{idx}}"
+      ansible_ssh_host : "{{item}}"
+      groups : docker
+      ansible_port: 9091
+    loop : "{{groups['dockerhost']}}"
+    loop_control : 
+        index_var: idx
+    register : new_host
+
+  - name : show new host
+    tags : docker_run
+    debug : 
+      var : new_host
+  - name : show all hosts
+    tags : docker_run
+    debug : 
+      var : "groups"
+
+  handlers : 
+    - name : Create_script_for_SSH_docker
+      template : 
+        src : /root/docker_ssh_script_temlp.j2
+        dest : /root/docker_ssh_script
+    - name : Adding_execute_permission
+      file : 
+        path : /root/docker_ssh_script
+        mode : +x
+    - name : Configure_SSH_in_docker
+      shell : source /root/docker_ssh_script
+
+
+
+- name : Going Inside Docker
+  tags : docker_run
+  hosts : docker
+  gather_facts : no
+  vars : 
+    ansible_ssh_private_key_file : /root/docker.pem
+  tasks :
+  - name : Install httpd in docker
+    package : 
+      name : httpd
+      state : present
+  - name : Start the service
+    command : /usr/sbin/httpd 
+
+
+
