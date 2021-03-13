@@ -1,0 +1,9 @@
+#!/usr/bin/bash
+docker exec {{docker_name}} yum install openssh-server -y
+docker exec {{docker_name}} yum install openssh-clients -y
+docker exec {{docker_name}} yum install ncurses -y
+docker exec {{docker_name}} yum install net-tools -y
+docker exec {{docker_name}} ssh-keygen -A
+docker exec {{docker_name}} mkdir /root/.ssh
+docker cp /root/docker.pem.pub {{docker_name}}:/root/.ssh/authorized_keys
+docker exec {{docker_name}} /usr/sbin/sshd
